@@ -131,3 +131,118 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 
 ```
+
+### 2、上下文
+
+这一步将handler封装成context
+context中封装包含HTML/json/string函数
+```go
+// 传递给json的encode()函数的数据
+// 本质是一个map
+type H map[string]interface{}
+
+// 对context进行疯转
+type Context struct {
+	// 响应
+	Writer     http.ResponseWriter
+	// 请求体
+	req        *http.Request
+	// 路径
+	Path       string
+	// 请求方法
+	Method     string
+	// 状态
+	StatusCode int
+}
+// 实例化一个context
+func newContext(w http.ResponseWriter, r *http.Request) *Context {
+	return &Context{
+		Writer: w,
+		req:    r,
+		Path:   r.URL.Path,
+		Method: r.Method,
+	}
+}
+// 获取表单信息的方法
+func (c *Context) PostForm(key string) string {
+	return c.req.FormValue(key)
+}
+// 获取查询参数得到方法
+func (c *Context) Query(key string) string {
+	return c.req.URL.Query().Get(key)
+}
+// 在响应头写入状态码
+func (c *Context) Status(code int) {
+	c.StatusCode = code
+	c.Writer.WriteHeader(code)
+}
+// 设置响应的消息格式
+func (c *Context) SetHeader(key string, value string) {
+	c.Writer.Header().Set(key, value)
+}
+// 返回string类型的响应消息
+func (c *Context) String(code int, values ...interface{}) {
+	c.SetHeader("Content-Type", "text/plain")
+	c.Status(code)
+	c.Writer.Write([]byte(fmt.Sprint(values...)))
+}
+// 返回Json类型的响应格式
+func (c *Context) JSON(code int, obj ...interface{}) {
+	c.SetHeader("Content-Type", "text/plain")
+	c.Status(code)
+	encoder := json.NewEncoder(c.Writer)
+	if err := encoder.Encode(obj); err != nil {
+		http.Error(c.Writer, err.Error(), 500)
+	}
+}
+// 返回字节切片类的格式
+func (c *Context) Data(code int, data []byte) {
+	c.Status(code)
+	c.Writer.Write(data)
+}
+// 返回HTML格式
+func (c *Context) HTML(code int, html string) {
+	c.SetHeader("Content-Type", "text/html")
+	c.Status(code)
+	c.Writer.Write([]byte(html))
+}
+```
+
+整个context的核心就是一个结构体
+不过这个context封装的比较简单
+这个context具有一些方法，就是我们比较常用的返回响应的方法
+
+然后将原来的代码进行替换
+```go
+type HandlerFunc func(*Context)
+
+type Engine struct {
+	router *router
+}
+
+func New() *Engine {
+	return &Engine{
+		router: newRouter(),
+	}
+}
+
+func (engine *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
+	engine.router.addRoute(method, pattern, handler)
+}
+
+func (engine *Engine) GET(pattern string, handler HandlerFunc) {
+	engine.addRoute("GET", pattern, handler)
+}
+
+func (engine *Engine) POST(pattern string, handler HandlerFunc) {
+	engine.addRoute("POST", pattern, handler)
+}
+func (engine *Engine) Run(addr string) (err error) {
+	return http.ListenAndServe(addr, engine)
+}
+
+func (engine *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c := newContext(w, r)
+	engine.router.handle(c)
+}
+```
