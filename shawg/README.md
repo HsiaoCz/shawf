@@ -246,3 +246,17 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	engine.router.handle(c)
 }
 ```
+
+### 3、前缀数路由
+
+所谓的动态路由，就是一条路由规则匹配某一类型而非某一条固定的路由，例如/hello/:name
+可以匹配/hello/xiao /hello/fan
+
+实现动态路由最常用的数据结构，被称为前缀树
+每一个节点的所有子节点都拥有相同的前缀
+
+这里让每一段作为前缀树的一个节点，通过树结构查询，如果中间某一层的节点都不满足条件，那么就说明没有匹配到的路由，查询结束
+
+我们实现的路由将具备两个功能
+参数匹配：例如/p/:lang/doc，可以匹配/p/c/doc 和/p/go/doc
+通配匹配。例如/static/*filepath，例如匹配/static/fav.ioc，也可以匹配/static/js/JQery.js，这种模式用于静态服务器，能够递归匹配子路径

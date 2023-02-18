@@ -16,5 +16,11 @@ func main() {
 			"password": ctx.PostForm("password"),
 		})
 	})
+	r.GET("/hi/:name", func(ctx *shawg.Context) {
+		ctx.JSON(http.StatusOK, shawg.H{
+			"code": 100,
+			"msg":  "Hello:" + ctx.Param("name"),
+		})
+	})
 	r.Run(":3023")
 }
